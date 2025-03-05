@@ -1,0 +1,74 @@
+1. Lấy tất cả người dùng mua ít nhất 3 đơn hàng
+- Hướng đi:
+Join hai bảng Orders và Users trên user_id để lấy tất cả đơn hàng được đặt bởi mỗi người.
+Đếm số lượng đơn hàng trên mỗi người bằng COUNT(o.id).
+Dùng câu lệnh HAVING để lọc ra những người dùng có ít hơn 3 đơn hàng.
+
+SELECT u.id, u.name, COUNT(o.id) AS order_count
+FROM Users u
+JOIN Orders o ON u.id = o.user_id
+GROUP BY u.id, u.name
+HAVING COUNT(o.id) >= 3;
+
+
+- Tối ưu hóa:
+Sử dụng chỉ mục (INDEX) trên Orders.user_id để tăng tốc độ truy vấn.
+Sử dụng bảng tổng hợp nếu hệ thống đã có bảng lưu tổng số lượng đơn hàng theo người dùng, thay vì tính toán lại mỗi lần truy vấn.
+Materialized Views có thể được sử dụng để lưu trữ kết quả tổng hợp nếu dữ liệu ít thay đổi nhưng truy vấn thường xuyên.
+2. Tìm 5 sản phẩm có tổng doanh thu cao nhất
+Hướng đi:
+- Join bảng Orders và Products trên product_id để lấy doanh thu của từng sản phẩm.
+Tính tổng doanh thu của từng sản phẩm bằng SUM(o.amount).
+Sắp xếp danh sách theo tổng doanh thu giảm dần và giới hạn 5 sản phẩm có doanh thu cao nhất.
+ 
+SELECT p.id, p.name, SUM(o.amount) AS total_sales
+FROM Products p
+JOIN Orders o ON p.id = o.product_id
+GROUP BY p.id, p.name
+ORDER BY total_sales DESC
+LIMIT 5;
+
+
+- Tối ưu hóa:
+Chỉ mục (INDEX) trên Orders.product_id để tối ưu việc join.
+Dùng bảng tổng hợp doanh thu sản phẩm (nếu có thể) thay vì tính toán lại trên toàn bộ bảng mỗi lần truy vấn.
+Materialized View có thể lưu trữ dữ liệu tổng hợp nếu doanh thu không thay đổi thường xuyên.
+
+3. Tính trung bình số tiền đặt hàng theo từng tháng trong năm 2023
+- Hướng đi:
+Lọc các đơn hàng chỉ trong năm 2023 bằng WHERE order_date BETWEEN '2023-01-01' AND '2023-12-31'.
+Lấy tháng từ order_date bằng DATE_FORMAT(order_date, '%Y-%m').
+Dùng AVG(o.amount) để tính trung bình số tiền đặt hàng trong từng tháng.
+Nhóm kết quả theo tháng và sắp xếp theo thứ tự thời gian.
+
+SELECT 
+    DATE_FORMAT(order_date, '%Y-%m') AS month,
+    AVG(amount) AS avg_order_amount
+FROM Orders
+WHERE order_date BETWEEN '2023-01-01' AND '2023-12-31'
+GROUP BY month
+ORDER BY month;
+
+- Tối ưu hóa:
+Chỉ mục (INDEX) trên Orders.order_date để truy vấn nhanh hơn khi lọc dữ liệu theo thời gian.
+Partitioning theo năm/tháng nếu bảng Orders có dữ liệu lớn, giúp truy vấn nhanh hơn khi chỉ cần dữ liệu của năm 2023.
+Bảng tổng hợp doanh thu theo tháng có thể cập nhật định kỳ để giảm tải việc tính toán mỗi lần truy vấn.
+
+4. Tìm những người dùng đã mua sản phẩm từ tất cả các danh mục có sẵn
+- Hướng đi:
+Kết nối bảng Users, Orders, và Products để xác định các danh mục sản phẩm mà mỗi người dùng đã mua.
+Đếm số danh mục sản phẩm khác nhau mà mỗi người dùng đã mua bằng COUNT(DISTINCT p.category).
+So sánh với tổng số danh mục có sẵn trong bảng Products.
+Nếu một người dùng đã mua sản phẩm từ tất cả danh mục, họ sẽ được hiển thị trong kết quả.
+
+SELECT u.id, u.name
+FROM Users u
+JOIN Orders o ON u.id = o.user_id
+JOIN Products p ON o.product_id = p.id
+GROUP BY u.id, u.name
+HAVING COUNT(DISTINCT p.category) = (SELECT COUNT(DISTINCT category) FROM Products);
+
+-Tối ưu hóa:
+Chỉ mục (INDEX) trên Orders.user_id, Orders.product_id, và Products.category để tăng tốc độ truy vấn.
+Bảng tổng hợp dữ liệu về danh mục đã mua để giảm tải tính toán mỗi lần truy vấn.
+Sử dụng partitioning trên Orders theo thời gian nếu bảng có dữ liệu lớn.
